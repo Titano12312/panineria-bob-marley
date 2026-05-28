@@ -14,10 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      reservations: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          guest_name: string
+          id: string
+          notes: string | null
+          party_size: number
+          phone: string
+          reserved_at: string
+          status: string
+          table_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number
+          guest_name: string
+          id?: string
+          notes?: string | null
+          party_size: number
+          phone: string
+          reserved_at: string
+          status?: string
+          table_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          guest_name?: string
+          id?: string
+          notes?: string | null
+          party_size?: number
+          phone?: string
+          reserved_at?: string
+          status?: string
+          table_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservations_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_tables: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          seats: number
+          x: number
+          y: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          seats: number
+          x?: number
+          y?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          seats?: number
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      reservation_slots: {
+        Row: {
+          duration_minutes: number | null
+          id: string | null
+          party_size: number | null
+          reserved_at: string | null
+          status: string | null
+          table_id: string | null
+        }
+        Insert: {
+          duration_minutes?: number | null
+          id?: string | null
+          party_size?: number | null
+          reserved_at?: string | null
+          status?: string | null
+          table_id?: string | null
+        }
+        Update: {
+          duration_minutes?: number | null
+          id?: string | null
+          party_size?: number | null
+          reserved_at?: string | null
+          status?: string | null
+          table_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservations_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never
