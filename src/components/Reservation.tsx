@@ -22,6 +22,7 @@ type Slot = {
 };
 
 const HOURS = ["12:00", "12:30", "13:00", "13:30", "19:30", "20:00", "20:30", "21:00", "21:30"];
+const SERVICE_DURATION_MINUTES = 60;
 
 const schema = z.object({
   guest_name: z.string().trim().min(2, "Nome troppo corto").max(80),
@@ -44,6 +45,20 @@ function isOverlap(slot: Slot, start: Date, durationMin: number) {
   return s1 < e2 && s2 < e1;
 }
 
+async function fetchUpcomingSlots() {
+  const { data, error } = await supabase
+    .from("reservation_slots")
+    .select("*")
+    .gte("reserved_at", new Date().toISOString())
+    .order("reserved_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as Slot[];
+}
+
 export function Reservation() {
   const [tables, setTables] = useState<Table[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -63,11 +78,11 @@ export function Reservation() {
     (async () => {
       const [t, s] = await Promise.all([
         supabase.from("restaurant_tables").select("*").order("label"),
-        supabase.from("reservation_slots").select("*").gte("reserved_at", new Date().toISOString()),
+        fetchUpcomingSlots(),
       ]);
       if (!mounted) return;
       if (t.data) setTables(t.data as Table[]);
-      if (s.data) setSlots(s.data as Slot[]);
+      setSlots(s);
     })();
 
     const channel = supabase
@@ -76,11 +91,8 @@ export function Reservation() {
         "postgres_changes",
         { event: "*", schema: "public", table: "reservations" },
         async () => {
-          const { data } = await supabase
-            .from("reservation_slots")
-            .select("*")
-            .gte("reserved_at", new Date().toISOString());
-          if (data) setSlots(data as Slot[]);
+          const data = await fetchUpcomingSlots();
+          if (mounted) setSlots(data);
         }
       )
       .subscribe();
@@ -100,7 +112,7 @@ export function Reservation() {
     const map: Record<string, boolean> = {};
     for (const t of tables) {
       const busy = slots.some(
-        (s) => s.table_id === t.id && isOverlap(s, selectedDateTime, 90)
+        (s) => s.table_id === t.id && isOverlap(s, selectedDateTime, SERVICE_DURATION_MINUTES)
       );
       map[t.id] = !busy && t.seats >= partySize;
     }
@@ -132,6 +144,11 @@ export function Reservation() {
       return;
     }
 
+    if (!availability[tableId]) {
+      toast.error("Questo tavolo è occupato in quell'orario. Scegline un altro.");
+      return;
+    }
+
     setSubmitting(true);
     const { error } = await supabase
       .from("reservations")
@@ -141,7 +158,7 @@ export function Reservation() {
         phone: parsed.data.phone,
         party_size: parsed.data.party_size,
         reserved_at: selectedDateTime.toISOString(),
-        duration_minutes: 90,
+        duration_minutes: SERVICE_DURATION_MINUTES,
         notes: parsed.data.notes ?? null,
       });
     setSubmitting(false);
@@ -154,11 +171,8 @@ export function Reservation() {
     }
 
     // Refresh availability immediately (anon can't receive realtime on reservations)
-    const { data: fresh } = await supabase
-      .from("reservation_slots")
-      .select("*")
-      .gte("reserved_at", new Date().toISOString());
-    if (fresh) setSlots(fresh as Slot[]);
+    const fresh = await fetchUpcomingSlots();
+    setSlots(fresh);
 
     setConfirmedId("ok");
     toast.success("Prenotazione confermata! Ti aspettiamo 🌴");
