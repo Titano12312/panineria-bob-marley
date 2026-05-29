@@ -22,6 +22,8 @@ type Slot = {
 };
 
 const HOURS = ["12:00", "12:30", "13:00", "13:30", "19:30", "20:00", "20:30", "21:00", "21:30"];
+const SERVICE_DURATION_MINUTES = 60;
+const RESTAURANT_TIME_ZONE = "Europe/Rome";
 
 const schema = z.object({
   guest_name: z.string().trim().min(2, "Nome troppo corto").max(80),
@@ -36,12 +38,81 @@ function todayISO() {
   return d.toISOString().slice(0, 10);
 }
 
+function getTimeZoneOffset(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  ) as Record<string, number>;
+
+  const zonedTime = Date.UTC(
+    values.year,
+    values.month - 1,
+    values.day,
+    values.hour,
+    values.minute,
+    values.second
+  );
+
+  return zonedTime - date.getTime();
+}
+
+function createRestaurantDate(date: string, time: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const targetUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+
+  let corrected = targetUtc;
+  for (let i = 0; i < 2; i += 1) {
+    const offset = getTimeZoneOffset(new Date(corrected), RESTAURANT_TIME_ZONE);
+    corrected = targetUtc - offset;
+  }
+
+  return new Date(corrected);
+}
+
+function isSameRestaurantDay(value: string, selected: Date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: RESTAURANT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date(value)) === formatter.format(selected);
+}
+
 function isOverlap(slot: Slot, start: Date, durationMin: number) {
   const s1 = new Date(slot.reserved_at).getTime();
   const e1 = s1 + slot.duration_minutes * 60_000;
   const s2 = start.getTime();
   const e2 = s2 + durationMin * 60_000;
   return s1 < e2 && s2 < e1;
+}
+
+async function fetchUpcomingSlots() {
+  const { data, error } = await supabase
+    .from("reservation_slots")
+    .select("*")
+    .gte("reserved_at", new Date().toISOString())
+    .order("reserved_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as Slot[];
 }
 
 export function Reservation() {
@@ -63,11 +134,11 @@ export function Reservation() {
     (async () => {
       const [t, s] = await Promise.all([
         supabase.from("restaurant_tables").select("*").order("label"),
-        supabase.from("reservation_slots").select("*").gte("reserved_at", new Date().toISOString()),
+        fetchUpcomingSlots(),
       ]);
       if (!mounted) return;
       if (t.data) setTables(t.data as Table[]);
-      if (s.data) setSlots(s.data as Slot[]);
+      setSlots(s);
     })();
 
     const channel = supabase
@@ -76,11 +147,8 @@ export function Reservation() {
         "postgres_changes",
         { event: "*", schema: "public", table: "reservations" },
         async () => {
-          const { data } = await supabase
-            .from("reservation_slots")
-            .select("*")
-            .gte("reserved_at", new Date().toISOString());
-          if (data) setSlots(data as Slot[]);
+          const data = await fetchUpcomingSlots();
+          if (mounted) setSlots(data);
         }
       )
       .subscribe();
@@ -92,23 +160,32 @@ export function Reservation() {
   }, []);
 
   const selectedDateTime = useMemo(() => {
-    const dt = new Date(`${date}T${time}:00`);
-    return dt;
+    return createRestaurantDate(date, time);
   }, [date, time]);
 
   const availability = useMemo(() => {
     const map: Record<string, boolean> = {};
     for (const t of tables) {
       const busy = slots.some(
-        (s) => s.table_id === t.id && isOverlap(s, selectedDateTime, 90)
+        (s) => s.table_id === t.id && isOverlap(s, selectedDateTime, SERVICE_DURATION_MINUTES)
       );
       map[t.id] = !busy && t.seats >= partySize;
     }
     return map;
   }, [tables, slots, selectedDateTime, partySize]);
 
+  const occupancy = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const t of tables) {
+      map[t.id] = slots.some(
+        (s) => s.table_id === t.id && isOverlap(s, selectedDateTime, SERVICE_DURATION_MINUTES)
+      );
+    }
+    return map;
+  }, [tables, slots, selectedDateTime]);
+
   const liveCount = useMemo(
-    () => slots.filter((s) => new Date(s.reserved_at).toDateString() === selectedDateTime.toDateString()).length,
+    () => slots.filter((s) => isSameRestaurantDay(s.reserved_at, selectedDateTime)).length,
     [slots, selectedDateTime]
   );
 
@@ -132,6 +209,11 @@ export function Reservation() {
       return;
     }
 
+    if (!availability[tableId]) {
+      toast.error("Questo tavolo è occupato in quell'orario. Scegline un altro.");
+      return;
+    }
+
     setSubmitting(true);
     const { error } = await supabase
       .from("reservations")
@@ -141,7 +223,7 @@ export function Reservation() {
         phone: parsed.data.phone,
         party_size: parsed.data.party_size,
         reserved_at: selectedDateTime.toISOString(),
-        duration_minutes: 90,
+        duration_minutes: SERVICE_DURATION_MINUTES,
         notes: parsed.data.notes ?? null,
       });
     setSubmitting(false);
@@ -154,11 +236,8 @@ export function Reservation() {
     }
 
     // Refresh availability immediately (anon can't receive realtime on reservations)
-    const { data: fresh } = await supabase
-      .from("reservation_slots")
-      .select("*")
-      .gte("reserved_at", new Date().toISOString());
-    if (fresh) setSlots(fresh as Slot[]);
+    const fresh = await fetchUpcomingSlots();
+    setSlots(fresh);
 
     setConfirmedId("ok");
     toast.success("Prenotazione confermata! Ti aspettiamo 🌴");
@@ -201,6 +280,7 @@ export function Reservation() {
 
             {tables.map((t) => {
               const free = availability[t.id];
+              const occupied = occupancy[t.id];
               const selected = tableId === t.id;
               const radius = 3 + Math.min(t.seats, 8) * 0.4;
               return (
@@ -214,7 +294,7 @@ export function Reservation() {
                     cx={t.x}
                     cy={t.y}
                     r={radius}
-                    fill={selected ? "oklch(0.72 0.18 50)" : free ? "oklch(0.55 0.15 145)" : "oklch(0.4 0.02 60)"}
+                    fill={selected ? "oklch(0.72 0.18 50)" : free ? "oklch(0.55 0.15 145)" : occupied ? "oklch(0.52 0.16 28)" : "oklch(0.4 0.02 60)"}
                     stroke={selected ? "oklch(0.82 0.16 90)" : "oklch(0.32 0.03 60)"}
                     strokeWidth={selected ? 0.6 : 0.2}
                   >
@@ -226,7 +306,7 @@ export function Reservation() {
                     {t.label}
                   </text>
                   <text x={t.x} y={t.y + radius + 2.5} textAnchor="middle" fontSize="1.6" fill="oklch(0.72 0.03 80)">
-                    {t.seats} posti
+                    {occupied ? "Occupato" : `${t.seats} posti`}
                   </text>
                 </g>
               );
@@ -237,7 +317,7 @@ export function Reservation() {
         <div className="mt-4 flex flex-wrap gap-4 text-xs uppercase tracking-widest text-muted-foreground">
           <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-secondary" /> Libero</span>
           <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-primary" /> Selezionato</span>
-          <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-muted" /> Occupato</span>
+          <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-destructive" /> Occupato</span>
         </div>
       </div>
 
@@ -249,7 +329,7 @@ export function Reservation() {
               <CheckCircle2 className="mx-auto h-14 w-14 text-secondary mb-4" />
               <h3 className="font-display text-3xl uppercase mb-2">Confermato!</h3>
               <p className="text-muted-foreground mb-6">
-                Ti aspettiamo {selectedDateTime.toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short" })}.
+                  Ti aspettiamo {selectedDateTime.toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short", timeZone: RESTAURANT_TIME_ZONE })}.
               </p>
               <button
                 onClick={() => setConfirmedId(null)}
