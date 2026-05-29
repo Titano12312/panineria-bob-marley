@@ -133,7 +133,7 @@ export function Reservation() {
     }
 
     setSubmitting(true);
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("reservations")
       .insert({
         table_id: tableId,
@@ -143,9 +143,7 @@ export function Reservation() {
         reserved_at: selectedDateTime.toISOString(),
         duration_minutes: 90,
         notes: parsed.data.notes ?? null,
-      })
-      .select("id")
-      .single();
+      });
     setSubmitting(false);
 
     if (error) {
@@ -154,7 +152,7 @@ export function Reservation() {
         : "Errore nella prenotazione. Riprova.");
       return;
     }
-    setConfirmedId(data.id);
+    setConfirmedId("ok");
     toast.success("Prenotazione confermata! Ti aspettiamo 🌴");
     setGuestName("");
     setPhone("");
