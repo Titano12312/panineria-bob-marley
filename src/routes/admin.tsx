@@ -35,7 +35,10 @@ function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    let mounted = true;
+
+    async function check(session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) {
+      if (!mounted) return;
       setUserEmail(session?.user.email ?? null);
       if (session?.user) {
         const { data } = await supabase
@@ -44,28 +47,22 @@ function AdminPage() {
           .eq("user_id", session.user.id)
           .eq("role", "admin")
           .maybeSingle();
+        if (!mounted) return;
         setIsAdmin(!!data);
       } else {
         setIsAdmin(false);
       }
       setLoading(false);
+    }
+
+    supabase.auth.getSession().then(({ data }) => check(data.session));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Avoid duplicate work on initial load (getSession already handles it)
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") check(session);
     });
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      setUserEmail(data.session?.user.email ?? null);
-      if (data.session?.user) {
-        const { data: roleRow } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id)
-          .eq("role", "admin")
-          .maybeSingle();
-        setIsAdmin(!!roleRow);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   if (loading) {
