@@ -188,12 +188,18 @@ function Dashboard({ email }: { email: string }) {
   }
 
   useEffect(() => {
+    let active = true;
     load();
     const ch = supabase
       .channel("admin-reservations")
-      .on("postgres_changes", { event: "*", schema: "public", table: "reservations" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservations" }, () => {
+        if (active) load();
+      })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
+    };
   }, []);
 
   const tableMap = Object.fromEntries(tables.map((t) => [t.id, t]));
@@ -221,11 +227,8 @@ function Dashboard({ email }: { email: string }) {
 
   async function cancel(id: string) {
     if (!confirm("Annullare questa prenotazione?")) return;
-    const prev = reservations;
-    setReservations((rs) => rs.filter((r) => r.id !== id));
     const { error } = await supabase.from("reservations").delete().eq("id", id);
     if (error) {
-      setReservations(prev);
       toast.error(error.message);
     } else {
       toast.success("Prenotazione annullata");
