@@ -76,10 +76,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Panineria Bob Marley — Palermo" },
       { name: "description", content: "Panini gourmet a Palermo. Prenota il tuo tavolo in diretta da Panineria Bob Marley, in Via Giuseppe Paratore 36." },
       { property: "og:title", content: "Panineria Bob Marley — Palermo" },
-      { property: "og:description", content: "Panini gourmet a Palermo. Prenota il tavolo in diretta." },
+      { property: "og:description", content: "Panini gourmet a Palermo. Prenota il tuo tavolo in diretta da Panineria Bob Marley, in Via Giuseppe Paratore 36." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Panineria Bob Marley — Palermo" },
+      { name: "twitter:description", content: "Panini gourmet a Palermo. Prenota il tuo tavolo in diretta da Panineria Bob Marley, in Via Giuseppe Paratore 36." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/13790078-0ef6-41b1-8303-7f45ae1a62ba" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/13790078-0ef6-41b1-8303-7f45ae1a62ba" },
     ],
     links: [
       {
