@@ -23,6 +23,7 @@ type Slot = {
 
 const HOURS = ["12:00", "12:30", "13:00", "13:30", "19:30", "20:00", "20:30", "21:00", "21:30"];
 const SERVICE_DURATION_MINUTES = 60;
+const RESTAURANT_TIME_ZONE = "Europe/Rome";
 
 const schema = z.object({
   guest_name: z.string().trim().min(2, "Nome troppo corto").max(80),
@@ -35,6 +36,61 @@ function todayISO() {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().slice(0, 10);
+}
+
+function getTimeZoneOffset(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  ) as Record<string, number>;
+
+  const zonedTime = Date.UTC(
+    values.year,
+    values.month - 1,
+    values.day,
+    values.hour,
+    values.minute,
+    values.second
+  );
+
+  return zonedTime - date.getTime();
+}
+
+function createRestaurantDate(date: string, time: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const targetUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+
+  let corrected = targetUtc;
+  for (let i = 0; i < 2; i += 1) {
+    const offset = getTimeZoneOffset(new Date(corrected), RESTAURANT_TIME_ZONE);
+    corrected = targetUtc - offset;
+  }
+
+  return new Date(corrected);
+}
+
+function isSameRestaurantDay(value: string, selected: Date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: RESTAURANT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date(value)) === formatter.format(selected);
 }
 
 function isOverlap(slot: Slot, start: Date, durationMin: number) {
@@ -104,8 +160,7 @@ export function Reservation() {
   }, []);
 
   const selectedDateTime = useMemo(() => {
-    const dt = new Date(`${date}T${time}:00`);
-    return dt;
+    return createRestaurantDate(date, time);
   }, [date, time]);
 
   const availability = useMemo(() => {
@@ -130,7 +185,7 @@ export function Reservation() {
   }, [tables, slots, selectedDateTime]);
 
   const liveCount = useMemo(
-    () => slots.filter((s) => new Date(s.reserved_at).toDateString() === selectedDateTime.toDateString()).length,
+    () => slots.filter((s) => isSameRestaurantDay(s.reserved_at, selectedDateTime)).length,
     [slots, selectedDateTime]
   );
 
@@ -274,7 +329,7 @@ export function Reservation() {
               <CheckCircle2 className="mx-auto h-14 w-14 text-secondary mb-4" />
               <h3 className="font-display text-3xl uppercase mb-2">Confermato!</h3>
               <p className="text-muted-foreground mb-6">
-                Ti aspettiamo {selectedDateTime.toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short" })}.
+                  Ti aspettiamo {selectedDateTime.toLocaleString("it-IT", { dateStyle: "long", timeStyle: "short", timeZone: RESTAURANT_TIME_ZONE })}.
               </p>
               <button
                 onClick={() => setConfirmedId(null)}
