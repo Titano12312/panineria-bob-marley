@@ -119,6 +119,16 @@ export function Reservation() {
     return map;
   }, [tables, slots, selectedDateTime, partySize]);
 
+  const occupancy = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    for (const t of tables) {
+      map[t.id] = slots.some(
+        (s) => s.table_id === t.id && isOverlap(s, selectedDateTime, SERVICE_DURATION_MINUTES)
+      );
+    }
+    return map;
+  }, [tables, slots, selectedDateTime]);
+
   const liveCount = useMemo(
     () => slots.filter((s) => new Date(s.reserved_at).toDateString() === selectedDateTime.toDateString()).length,
     [slots, selectedDateTime]
@@ -215,6 +225,7 @@ export function Reservation() {
 
             {tables.map((t) => {
               const free = availability[t.id];
+              const occupied = occupancy[t.id];
               const selected = tableId === t.id;
               const radius = 3 + Math.min(t.seats, 8) * 0.4;
               return (
@@ -228,7 +239,7 @@ export function Reservation() {
                     cx={t.x}
                     cy={t.y}
                     r={radius}
-                    fill={selected ? "oklch(0.72 0.18 50)" : free ? "oklch(0.55 0.15 145)" : "oklch(0.4 0.02 60)"}
+                    fill={selected ? "oklch(0.72 0.18 50)" : free ? "oklch(0.55 0.15 145)" : occupied ? "oklch(0.52 0.16 28)" : "oklch(0.4 0.02 60)"}
                     stroke={selected ? "oklch(0.82 0.16 90)" : "oklch(0.32 0.03 60)"}
                     strokeWidth={selected ? 0.6 : 0.2}
                   >
@@ -240,7 +251,7 @@ export function Reservation() {
                     {t.label}
                   </text>
                   <text x={t.x} y={t.y + radius + 2.5} textAnchor="middle" fontSize="1.6" fill="oklch(0.72 0.03 80)">
-                    {t.seats} posti
+                    {occupied ? "Occupato" : `${t.seats} posti`}
                   </text>
                 </g>
               );
@@ -251,7 +262,7 @@ export function Reservation() {
         <div className="mt-4 flex flex-wrap gap-4 text-xs uppercase tracking-widest text-muted-foreground">
           <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-secondary" /> Libero</span>
           <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-primary" /> Selezionato</span>
-          <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-muted" /> Occupato</span>
+          <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-destructive" /> Occupato</span>
         </div>
       </div>
 
