@@ -152,6 +152,14 @@ export function Reservation() {
         : "Errore nella prenotazione. Riprova.");
       return;
     }
+
+    // Refresh availability immediately (anon can't receive realtime on reservations)
+    const { data: fresh } = await supabase
+      .from("reservation_slots")
+      .select("*")
+      .gte("reserved_at", new Date().toISOString());
+    if (fresh) setSlots(fresh as Slot[]);
+
     setConfirmedId("ok");
     toast.success("Prenotazione confermata! Ti aspettiamo 🌴");
     setGuestName("");

@@ -221,9 +221,15 @@ function Dashboard({ email }: { email: string }) {
 
   async function cancel(id: string) {
     if (!confirm("Annullare questa prenotazione?")) return;
+    const prev = reservations;
+    setReservations((rs) => rs.filter((r) => r.id !== id));
     const { error } = await supabase.from("reservations").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else toast.success("Prenotazione annullata");
+    if (error) {
+      setReservations(prev);
+      toast.error(error.message);
+    } else {
+      toast.success("Prenotazione annullata");
+    }
   }
 
   return (
