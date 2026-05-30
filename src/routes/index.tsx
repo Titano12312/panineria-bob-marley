@@ -127,12 +127,12 @@ function Story() {
 }
 
 const ITEMS = [
-  { name: "Il Marley", desc: "Mortadella, pistacchio, stracciatella, basilico fresco", price: "8,50" },
-  { name: "Trenchtown", desc: "Suino nero, provola affumicata, cipolla caramellata, miele piccante", price: "9,00" },
-  { name: "Kingston", desc: "Pollo marinato jerk, avocado, lime, salsa allo yogurt", price: "9,50" },
-  { name: "Zion Veggie", desc: "Melanzane grigliate, caprino, pomodoro secco, rucola", price: "7,50" },
-  { name: "Sicilia Mia", desc: "Sfincione, tuma, acciughe, origano selvatico", price: "8,00" },
-  { name: "Redemption", desc: "Roast beef, parmigiano 24 mesi, maionese al tartufo", price: "9,80" },
+  { name: "Panino Bob Marley", desc: "Salsiccia, cipolla, salame piccante, emmental e funghi", price: "6,00" },
+  { name: "Panino Cartoccio", desc: "Prosciutto e mozzarella", price: "3,50" },
+  { name: "Panino Cartoccio Piccante", desc: "Prosciutto, mozzarella e salame piccante", price: "4,00" },
+  { name: "Panino Cartopata", desc: "Prosciutto, mozzarella e patatine", price: "4,00" },
+  { name: "Panino Topolino", desc: "Prosciutto, mozzarella e wurstel", price: "4,00" },
+  { name: "Panino Wurstel", desc: "Wurstel e salsa a scelta", price: "3,00" },
 ];
 
 function Menu() {
@@ -202,6 +202,11 @@ function Footer() {
         <span>© {new Date().getFullYear()} · Palermo, Sicilia</span>
         <a href="https://instagram.com" className="flex items-center gap-2 hover:text-foreground transition">
           <Instagram className="h-4 w-4" /> Instagram
+        </a>
+      </div>
+      <div className="max-w-6xl mx-auto mt-6 text-center">
+        <a href="/admin" className="text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-muted-foreground transition">
+          Area riservata
         </a>
       </div>
     </footer>
