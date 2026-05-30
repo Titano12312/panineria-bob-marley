@@ -1,25 +1,31 @@
-## Problema
+## Obiettivo
+Capire perché il sito va in 404 dopo un deploy riuscito su Netlify, Cloudflare o Vercel e preparare la correzione giusta.
 
-Le richieste a `reservations` e `reservation_slots` falliscono con HTTP 403:
-```
-permission denied for function has_role
-```
+## Piano
+1. Verificare l’output di build reale del progetto per confermare se genera un’app statica oppure un output con runtime server.
+2. Allineare la strategia di deploy al tipo di app:
+   - se è compatibile con hosting statico, sistemare la configurazione corretta per la piattaforma scelta;
+   - se richiede runtime server, rimuovere la falsa configurazione “SPA-only” e preparare il deploy nel modo corretto.
+3. Correggere i file di configurazione del deploy per la piattaforma target, evitando rewrite generici che non risolvono un’app SSR.
+4. Validare il comportamento finale su route principale e refresh pagina per escludere nuovi 404.
 
-Le RLS policy di `reservations` chiamano `public.has_role(auth.uid(), 'admin')`. In una migration recente è stato fatto un `REVOKE` di `has_role` da `PUBLIC`/`anon`/`authenticated`, ma PostgREST valuta le policy con il ruolo del chiamante: senza EXECUTE la valutazione fallisce e l'intera SELECT viene rifiutata. Risultato: la mappa tavoli non riesce a leggere gli slot e l'admin non vede prenotazioni.
+## Diagnosi probabile
+Dai file letti, il progetto usa **TanStack Start** con una **entry server** (`src/server.ts`) e configurazione `tanstackStart` in `vite.config.ts`.
+Questo fa pensare che **non sia una semplice SPA statica con solo `index.html`**.
+Quindi:
+- `public/_redirects`
+- `vercel.json` con rewrite verso `/index.html`
 
-## Fix (1 migration, nessuna modifica al codice)
+possono aiutare solo una SPA statica, ma **non correggono un’app che richiede runtime server/SSR**. Per questo il deploy può risultare “success” ma poi l’apertura del sito dare 404 o routing rotto su host statici configurati nel modo sbagliato.
 
-Ridare EXECUTE sulla funzione `has_role` ai ruoli che eseguono le policy:
+## Dettagli tecnici
+- `@lovable.dev/vite-tanstack-config`
+- `tanstackStart.server.entry = "server"`
+- `src/server.ts` importa `@tanstack/react-start/server-entry`
 
-```sql
-GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO anon, authenticated;
-```
+Questi segnali indicano che il progetto è pensato per il runtime del framework, non per essere pubblicato come semplice cartella statica con fallback a `index.html`.
 
-`has_role` è `SECURITY DEFINER` con `search_path = public` e legge solo `user_roles` confrontando `user_id` e `role`: è sicuro esporlo per EXECUTE — è esattamente il pattern raccomandato per evitare ricorsione RLS.
-
-## Verifica
-
-Dopo la migration:
-- la home ricarica gli slot senza 403,
-- i tavoli già prenotati appaiono come "Occupato",
-- `/admin` torna a listare le prenotazioni.
+## Esito atteso dopo l’implementazione
+Avrai una di queste due soluzioni corrette:
+- deploy funzionante sulla piattaforma esterna scelta, con configurazione coerente col runtime del progetto;
+- oppure pubblicazione tramite l’hosting nativo del progetto, evitando il 404 strutturale sugli host statici esterni.
