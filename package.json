@@ -89,6 +89,9 @@
 }
 {
   "scripts": {
-    "deploy": "wrangler deploy"
+  "deploy": "wrangler deploy",
+  "dev": "vinxi dev",
+  "build": "vinxi build",
+  "start": "vinxi start"
   }
 }
