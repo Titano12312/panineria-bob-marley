@@ -102,17 +102,15 @@ function isOverlap(slot: Slot, start: Date, durationMin: number) {
 }
 
 async function fetchUpcomingSlots() {
-  const { data, error } = await supabase
-    .from("reservation_slots")
-    .select("*")
-    .gte("reserved_at", new Date().toISOString())
-    .order("reserved_at", { ascending: true });
+  const { data, error } = await supabase.rpc("get_reservation_slots");
 
   if (error) {
     throw error;
   }
 
-  return (data ?? []) as Slot[];
+  return ((data ?? []) as Slot[]).sort(
+    (a, b) => new Date(a.reserved_at).getTime() - new Date(b.reserved_at).getTime()
+  );
 }
 
 export function Reservation() {
