@@ -111,43 +111,20 @@ export type Database = {
       }
     }
     Views: {
-      reservation_slots: {
-        Row: {
-          duration_minutes: number | null
-          id: string | null
-          party_size: number | null
-          reserved_at: string | null
-          status: string | null
-          table_id: string | null
-        }
-        Insert: {
-          duration_minutes?: number | null
-          id?: string | null
-          party_size?: number | null
-          reserved_at?: string | null
-          status?: string | null
-          table_id?: string | null
-        }
-        Update: {
-          duration_minutes?: number | null
-          id?: string | null
-          party_size?: number | null
-          reserved_at?: string | null
-          status?: string | null
-          table_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reservations_table_id_fkey"
-            columns: ["table_id"]
-            isOneToOne: false
-            referencedRelation: "restaurant_tables"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
+      get_reservation_slots: {
+        Args: never
+        Returns: {
+          duration_minutes: number
+          id: string
+          party_size: number
+          reserved_at: string
+          status: string
+          table_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
