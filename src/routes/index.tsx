@@ -142,6 +142,12 @@ function Menu() {
         <div className="mb-12">
           <p className="text-xs uppercase tracking-[0.3em] text-accent mb-3">Il menu</p>
           <h2 className="font-display text-5xl md:text-7xl uppercase">Sei panini, zero compromessi</h2>
+          <p className="text-muted-foreground mt-4 max-w-xl">
+            Questi sono i nostri panini tipici. Per il menu completo, visita{" "}
+            <a href="https://www.justeat.it/restaurants-panineria-bob-marley-palermo/menu" target="_blank" rel="noopener noreferrer" className="text-accent underline hover:text-primary transition">
+              Just Eat
+            </a>.
+          </p>
         </div>
         <div className="grid md:grid-cols-2 gap-x-12 gap-y-8">
           {ITEMS.map((i) => (
